@@ -133,3 +133,4 @@ telecom-cdr-bigdata/
   `regexp_extract` để lấy ra, đúng như đề bài yêu cầu xử lý dữ liệu log gửi theo lô.
 - Dữ liệu, đơn giá cước trong `generate_telecom_data.py` là minh hoạ, không phản ánh
   giá thực tế của nhà mạng nào.
+# telecom-cdr-bigdata
