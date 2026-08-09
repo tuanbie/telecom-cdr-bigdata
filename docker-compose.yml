@@ -1,0 +1,176 @@
+version: "3"
+
+services:
+  # ============== HDFS: 1 master (namenode) + 2 slave (datanode) ==============
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    hostname: namenode
+    restart: always
+    ports:
+      - "9870:9870"   # Web UI HDFS
+      - "9000:9000"
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=telecom-cluster
+    env_file:
+      - ./hadoop.env
+    mem_limit: 1200m
+    networks: [bigdata]
+
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode1
+    hostname: datanode1
+    restart: always
+    volumes:
+      - datanode1_data:/hadoop/dfs/data
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9864:9864"
+    mem_limit: 1000m
+    networks: [bigdata]
+
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    hostname: datanode2
+    restart: always
+    volumes:
+      - datanode2_data:/hadoop/dfs/data
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9865:9864"
+    mem_limit: 1000m
+    networks: [bigdata]
+
+  # ============== YARN ==============
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    hostname: resourcemanager
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=namenode:9000 namenode:9870 datanode1:9864 datanode2:9864
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8088:8088"   # Web UI YARN
+    mem_limit: 1000m
+    networks: [bigdata]
+
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager1
+    hostname: nodemanager1
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=namenode:9000 namenode:9870 resourcemanager:8088
+    env_file:
+      - ./hadoop.env
+    mem_limit: 1000m
+    networks: [bigdata]
+
+  # ============== Hive ==============
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-postgresql
+    mem_limit: 400m
+    networks: [bigdata]
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    hostname: hive-metastore
+    env_file:
+      - ./hadoop.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode1:9864 hive-metastore-postgresql:5432"
+    ports:
+      - "9083:9083"
+    mem_limit: 1000m
+    networks: [bigdata]
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
+    env_file:
+      - ./hadoop.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore-postgresql/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"  # HiveServer2 (JDBC/Beeline)
+    depends_on:
+      - hive-metastore
+    mem_limit: 1000m
+    networks: [bigdata]
+
+  # ============== Spark (đọc/viết thẳng qua HDFS + Hive metastore) ==============
+  spark-master:
+    image: bde2020/spark-master:3.1.1-hadoop3.2
+    container_name: spark-master
+    ports:
+      - "8080:8080"   # Web UI Spark
+      - "7077:7077"
+    env_file:
+      - ./hadoop.env
+    mem_limit: 1200m
+    networks: [bigdata]
+
+  spark-worker1:
+    image: bde2020/spark-worker:3.1.1-hadoop3.2
+    container_name: spark-worker1
+    depends_on: [spark-master]
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8081:8081"
+    mem_limit: 1500m
+    networks: [bigdata]
+
+  # ============== MySQL: lưu kết quả sau ETL ==============
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: telecom_report
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    mem_limit: 600m
+    networks: [bigdata]
+
+  # ============== BI & Reporting ==============
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    ports:
+      - "3000:3000"
+    depends_on: [mysql]
+    mem_limit: 900m
+    networks: [bigdata]
+
+volumes:
+  namenode_data:
+  datanode1_data:
+  datanode2_data:
+  mysql_data:
+
+networks:
+  bigdata:
+    driver: bridge
