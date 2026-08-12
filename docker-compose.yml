@@ -162,7 +162,9 @@ services:
     ports:
       - "3000:3000"
     depends_on: [mysql]
-    mem_limit: 900m
+    environment:
+      - JAVA_OPTS=-Xmx1024m
+    mem_limit: 1500m
     networks: [bigdata]
 
 volumes:
