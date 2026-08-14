@@ -12,11 +12,13 @@ services:
       - "9000:9000"
     volumes:
       - namenode_data:/hadoop/dfs/name
+      - /private/tmp/claude-501/-Users-bietuan-Documents-master-big-data-telecom-cdr-bigdata/bda572d8-d8cb-425c-b837-9df60b1922ce/scratchpad/hduser_bind:/home/hduser
     environment:
       - CLUSTER_NAME=telecom-cluster
+      - HADOOP_HEAPSIZE_MAX=1500
     env_file:
       - ./hadoop.env
-    mem_limit: 1200m
+    mem_limit: 2200m
     networks: [bigdata]
 
   datanode1:
@@ -63,7 +65,7 @@ services:
       - ./hadoop.env
     ports:
       - "8088:8088"   # Web UI YARN
-    mem_limit: 1000m
+    mem_limit: 1200m
     networks: [bigdata]
 
   nodemanager1:
@@ -75,7 +77,7 @@ services:
       - SERVICE_PRECONDITION=namenode:9000 namenode:9870 resourcemanager:8088
     env_file:
       - ./hadoop.env
-    mem_limit: 1000m
+    mem_limit: 7000m
     networks: [bigdata]
 
   # ============== Hive ==============
@@ -107,11 +109,12 @@ services:
     environment:
       HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore-postgresql/metastore"
       SERVICE_PRECONDITION: "hive-metastore:9083"
+      HADOOP_HEAPSIZE: 1536
     ports:
       - "10000:10000"  # HiveServer2 (JDBC/Beeline)
     depends_on:
       - hive-metastore
-    mem_limit: 1000m
+    mem_limit: 2000m
     networks: [bigdata]
 
   # ============== Spark (đọc/viết thẳng qua HDFS + Hive metastore) ==============
@@ -136,7 +139,22 @@ services:
       - ./hadoop.env
     ports:
       - "8081:8081"
-    mem_limit: 1500m
+    mem_limit: 3500m
+    networks: [bigdata]
+
+  # ============== Sqoop: chuyển dữ liệu HDFS <-> MySQL ==============
+  sqoop:
+    build: ./sqoop
+    container_name: sqoop
+    hostname: sqoop
+    env_file:
+      - ./hadoop.env
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 mysql:3306
+    depends_on:
+      - namenode
+      - mysql
+    mem_limit: 800m
     networks: [bigdata]
 
   # ============== MySQL: lưu kết quả sau ETL ==============

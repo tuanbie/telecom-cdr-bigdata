@@ -24,8 +24,8 @@ def main():
     df = (spark.read.csv(args.input, header=False, inferSchema=True)
           .toDF(*schema_cols)
           .withColumn("src_file", F.input_file_name())
-          .withColumn("file_year", F.regexp_extract("src_file", r"Telecom-\d+-(\d{4})\d{4}-\d{2}\.csv", 1))
-          .withColumn("file_month", F.regexp_extract("src_file", r"Telecom-\d+-\d{4}(\d{2})\d{2}-\d{2}\.csv", 1)))
+          .withColumn("file_year", F.regexp_extract("src_file", r"Telecom-ALL-(\d{4})\d{4}\.csv", 1))
+          .withColumn("file_month", F.regexp_extract("src_file", r"Telecom-ALL-\d{4}(\d{2})\d{2}\.csv", 1)))
 
     df_d = df.filter((F.col("file_year") == year) & (F.col("file_month") == month))
 

@@ -19,19 +19,22 @@ mkdir -p "$ARCHIVE_DIR"
 # Tạo thư mục đích trên HDFS nếu chưa có
 hdfs dfs -mkdir -p "$HDFS_DIR"
 
-shopt -s nullglob
-FILES=("$SRC_DIR"/Telecom-*.csv)
+COUNT=$(find "$SRC_DIR" -maxdepth 1 -name "Telecom-*.csv" | wc -l)
 
-if [ ${#FILES[@]} -eq 0 ]; then
+if [ "$COUNT" -eq 0 ]; then
     echo "Không có file mới để ETL."
     exit 0
 fi
 
-echo "Đang đẩy ${#FILES[@]} file lên HDFS $HDFS_DIR ..."
-hdfs dfs -put -f "${FILES[@]}" "$HDFS_DIR/"
+# Dùng find | xargs thay vì mảng bash để tránh lỗi "Argument list too long"
+# khi backlog tích luỹ nhiều file (N shop x nhiều giờ dồn lại).
+echo "Đang đẩy $COUNT file lên HDFS $HDFS_DIR ..."
+find "$SRC_DIR" -maxdepth 1 -name "Telecom-*.csv" -print0 \
+    | xargs -0 -n 1000 sh -c 'hdfs dfs -put -f -- "$@" "$0"' "$HDFS_DIR/"
 
 echo "Di chuyển file đã xử lý vào $ARCHIVE_DIR ..."
-mv "${FILES[@]}" "$ARCHIVE_DIR/"
+find "$SRC_DIR" -maxdepth 1 -name "Telecom-*.csv" -print0 \
+    | xargs -0 -n 1000 mv -t "$ARCHIVE_DIR/" --
 
 echo "ETL xong. Tổng số file hiện có trên HDFS:"
 hdfs dfs -count "$HDFS_DIR"
